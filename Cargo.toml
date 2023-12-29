@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "crates/encore",
+    "crates/minipack",
+]
