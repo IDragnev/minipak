@@ -1,5 +1,6 @@
 #[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    crate::println!("{}", info);
     core::intrinsics::abort();
 }
 
