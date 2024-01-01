@@ -17,4 +17,5 @@ unsafe fn pre_main(_stack_top: *mut u8) {
     println!("Initializing allocator...");
     init_allocator();
     println!("Initializing allocator... done!");
+    syscall::exit(0);
 }

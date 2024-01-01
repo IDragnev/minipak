@@ -9,3 +9,5 @@ edition = "2021"
 linked_list_allocator = "0.10.5"
 compiler_builtins = "0.1.39"
 rlibc = "1.0.0"
+bitflags = "1.2.1"
+displaydoc = { version = "0.1.7", default-features = false }
