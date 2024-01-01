@@ -87,3 +87,94 @@ pub fn exit(code: i32) -> ! {
         );
     }
 }
+
+bitflags! {
+    pub struct OpenFlags: u64 {
+        const RDONLY = 0o0;
+        const RDWR = 0o2;
+        const CREAT = 0o100;
+        const TRUNC = 0o1000;
+    }
+}
+
+/// # Safety
+/// Calls into the Kernel
+#[inline(always)]
+pub unsafe fn open(
+    filename: *const u8,
+    flags: OpenFlags,
+    mode: u64,
+) -> FileDescriptor {
+    let syscall_num: u64 = 2;
+    let mut rax = syscall_num;
+
+    asm!(
+        "syscall",
+        inout("rax") rax,
+        in("rdi") filename,
+        in("rsi") flags.bits(),
+        in("rdx") mode,
+        lateout("rcx") _, lateout("r11") _,
+        options(nostack),
+    );
+    FileDescriptor(rax)
+}
+
+#[repr(C)]
+pub struct Stat {
+    _unused1: [u8; 48],
+    pub size: u64,
+    _unused2: [u8; 88],
+}
+
+/// # Safety
+/// Calls into the Kernel
+pub unsafe fn fstat(fd: FileDescriptor, buf: *mut Stat) -> u64 {
+    let syscall_num: u64 = 5;
+    let mut rax = syscall_num;
+
+    asm!(
+        "syscall",
+        inout("rax") rax,
+        in("rdi") fd.0,
+        in("rsi") buf,
+        lateout("rcx") _, lateout("r11") _,
+        options(nostack),
+    );
+    rax
+}
+
+/// # Safety
+/// Calls into the Kernel
+#[inline(always)]
+pub unsafe fn close(fd: FileDescriptor) -> u64 {
+    let syscall_number: u64 = 3;
+    let mut rax = syscall_number;
+
+    asm!(
+        "syscall",
+        inout("rax") rax,
+        in("rdi") fd.0,
+        lateout("rcx") _, lateout("r11") _,
+        options(nostack),
+    );
+    rax
+}
+
+/// # Safety
+/// Calls into the Kernel
+#[inline(always)]
+pub unsafe fn munmap<T>(addr: *const T, len: u64) -> u64 {
+    let syscall_number: u64 = 11;
+    let mut rax = syscall_number;
+
+    asm!(
+        "syscall",
+        inout("rax") rax,
+        in("rdi") addr,
+        in("rsi") len,
+        lateout("rcx") _, lateout("r11") _,
+        options(nostack),
+    );
+    rax
+}

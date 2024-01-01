@@ -3,11 +3,17 @@ pub use crate::{
     items::init_allocator,
     memmap::MmapOptions,
     println,
-    syscall,
+    syscall::{
+        self,
+        MmapFlags,
+        MmapProt,
+        OpenFlags,
+    },
+    fs::File,
 };
 pub use alloc::{
     fmt::Write,
     format,
-    string::String,
+    string::{String, ToString},
     vec::Vec,
 };
