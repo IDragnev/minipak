@@ -3,6 +3,8 @@
 #![feature(default_alloc_error_handler)]
 #![feature(naked_functions)]
 
+mod cli;
+
 #[naked]
 #[no_mangle]
 unsafe extern "C" fn _start() {
@@ -20,10 +22,14 @@ unsafe fn pre_main(stack_top: *mut u8) {
 }
 
 #[allow(clippy::unnecessary_wraps)]
-fn main(mut env: Env) -> Result<(), EncoreError> {
-    println!("args = {:?}", env.args);
-    println!("{:?}", env.vars.iter().find(|s| s.starts_with("SHELL=")));
-    println!("{:?}", env.find_vector(AuxvType::PHDR));
+fn main(env: Env) -> Result<(), EncoreError> {
+    match cli::Args::parse(&env) {
+        Ok(args) => println!("args = {:#?}", args),
+        Err(err) => {
+            println!("{}", err);
+            syscall::exit(1);
+        }
+    }
 
     Ok(())
 }
