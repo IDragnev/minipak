@@ -10,6 +10,8 @@ pub use crate::{
         OpenFlags,
     },
     fs::File,
+    utils::NullTerminated,
+    env::*,
 };
 pub use alloc::{
     fmt::Write,
