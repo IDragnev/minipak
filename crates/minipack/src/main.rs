@@ -47,7 +47,7 @@ fn write_compressed(args: &cli::Args) -> Result<(), PixieError> {
     let mut output = Writer::new(&args.output, 0o755)?;
 
     {
-        let stage1 = include_bytes!(concat!(env!("OUT_DIR"), "/embeds/release/stage1"));
+        let stage1 = include_bytes!(concat!(env!("OUT_DIR"), "/embeds/stage1"));
         output.write_all(stage1)?;
     }
 
