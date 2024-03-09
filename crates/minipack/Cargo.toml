@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 encore = { version = "0.1.0", path = "../encore" }
+lz4_flex = { version = "0.7.5", default-features = false, features = ["safe-encode", "safe-decode"] }
+pixie = { path = "../pixie" }

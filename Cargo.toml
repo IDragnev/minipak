@@ -1,7 +1,9 @@
 [workspace]
 members = [
     "crates/encore",
+    "crates/pixie",
     "crates/minipack",
+    "crates/stage1",
 ]
 
 [profile.dev]

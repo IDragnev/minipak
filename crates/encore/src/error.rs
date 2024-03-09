@@ -1,6 +1,6 @@
 use alloc::string::String;
 
-#[derive(Debug)]
+#[derive(displaydoc::Display, Debug)]
 pub enum EncoreError {
     /// mmap fixed address provided is not aligned to 0x1000: {0}
     MmapMemUnaligned(u64),
