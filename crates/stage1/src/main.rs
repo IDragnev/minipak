@@ -38,6 +38,10 @@ fn main(env: Env) -> Result<(), PixieError> {
     let guest_slice = &host[guest_range];
     let uncompressed_guest = lz4_flex::decompress_size_prepended(guest_slice).expect("invalid lz4 payload");
 
+    let guest_obj = pixie::Object::new(&uncompressed_guest[..])?;
+    println!("Parsed {:#?}", guest_obj.header());
+
+    /*
     let tmp_path = "/tmp/minipak-guest";
     {
         let mut guest = File::create(tmp_path, 0o755)?;
@@ -76,7 +80,7 @@ fn main(env: Env) -> Result<(), PixieError> {
                 )
             }
     }
+    */
 
-    #[allow(unreachable_code)]
     Ok(())
 }

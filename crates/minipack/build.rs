@@ -12,7 +12,7 @@ fn main() {
 }
 
 fn cargo_build(path: &Path) {
-    println!("cargo:rerun-if-changed={}", path.display());
+    println!("cargo:rerun-if-changed=..");
 
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let target_dir = format!("{}/embeds", out_dir);
