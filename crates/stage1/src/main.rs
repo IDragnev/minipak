@@ -41,6 +41,14 @@ fn main(env: Env) -> Result<(), PixieError> {
     let guest_obj = pixie::Object::new(&uncompressed_guest[..])?;
     println!("Parsed {:#?}", guest_obj.header());
 
+    for seg in guest_obj.segments().all() {
+        println!("{:?}", seg.header());
+    }
+
+    println!(
+        "Load convex hull: {:0x?}",
+        guest_obj.segments().load_convex_hull(),
+    );
     /*
     let tmp_path = "/tmp/minipak-guest";
     {
