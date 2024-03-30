@@ -178,3 +178,18 @@ pub unsafe fn munmap<T>(addr: *const T, len: u64) -> u64 {
     );
     rax
 }
+
+/// # Safety
+/// Calls into the kernel.
+#[inline(always)]
+pub unsafe fn dup(fd: u64) {
+    let syscall_number = 32;
+
+    asm!(
+        "syscall",
+        in("rax") syscall_number,
+        in("rdi") fd,
+        lateout("rcx") _, lateout("r11") _,
+        options(nostack),
+    );
+}

@@ -47,15 +47,11 @@ impl ProgramHeader {
     pub const WRITE: u32 = 2;
     pub const READ: u32 = 4;
 
-    pub fn file_range(&self) -> core::ops::Range<usize> {
-        let start = self.offset as usize;
-        let end = start  + self.file_size as usize;
-        start..end
+    pub fn file_range(&self) -> core::ops::Range<u64> {
+        self.offset..(self.offset  + self.file_size)
     }
 
-    pub fn mem_range(&self) -> core::ops::Range<usize> {
-        let start = self.vaddr as usize;
-        let end = start  + self.mem_size as usize;
-        start..end
+    pub fn mem_range(&self) -> core::ops::Range<u64> {
+        self.vaddr..(self.vaddr  + self.mem_size)
     }
 }
