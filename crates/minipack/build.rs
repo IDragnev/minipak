@@ -37,8 +37,8 @@ fn cargo_build(path: &Path) {
         );
     }
 
-    // Let's just assume the binary has the same name as the crate
-    let binary_name = path.file_name().unwrap().to_str().unwrap();
+    // Let's just assume the library has the same name as the crate
+    let binary_name = format!("lib{}.so", path.file_name().unwrap().to_str().unwrap());
     let output = Command::new("objcopy")
         .arg("--strip-all")
         .arg(&format!("release/{}", binary_name))

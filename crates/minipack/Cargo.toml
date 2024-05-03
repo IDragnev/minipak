@@ -9,3 +9,4 @@ edition = "2021"
 encore = { version = "0.1.0", path = "../encore" }
 lz4_flex = { version = "0.7.5", default-features = false, features = ["safe-encode", "safe-decode"] }
 pixie = { path = "../pixie" }
+displaydoc = { version = "0.2.4", default-features = false }

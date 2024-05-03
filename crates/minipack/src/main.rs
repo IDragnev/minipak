@@ -4,6 +4,7 @@
 #![feature(naked_functions)]
 
 mod cli;
+mod error;
 
 #[naked]
 #[no_mangle]
@@ -12,14 +13,14 @@ unsafe extern "C" fn _start() {
     asm!("mov rdi, rsp", "call pre_main", options(noreturn))
 }
 
+use error::Error;
 use encore::prelude::*;
 use pixie::{
-    EndMarker,
-    Manifest,
-    PixieError,
-    Resource,
+    ObjectHeader,
+    ProgramHeader,
     Writer,
 };
+use core::ops::Range;
 
 #[no_mangle]
 unsafe fn pre_main(stack_top: *mut u8) {
@@ -29,7 +30,7 @@ unsafe fn pre_main(stack_top: *mut u8) {
 }
 
 #[allow(clippy::unnecessary_wraps)]
-fn main(env: Env) -> Result<(), PixieError> {
+fn main(env: Env) -> Result<(), Error> {
     match cli::Args::parse(&env) {
         Ok(args) => {
             return write_compressed(&args);
@@ -41,55 +42,166 @@ fn main(env: Env) -> Result<(), PixieError> {
     }
 }
 
-fn write_compressed(args: &cli::Args) -> Result<(), PixieError> {
-    const PAGE_SIZE: u64 = 4 * 1024;
+fn write_compressed(args: &cli::Args) -> Result<(), Error> {
+    println!("Packing guest {:?}", args.input);
+    let guest_file = File::open(args.input)?;
+    let guest_map = guest_file.map()?;
+    let guest_obj = pixie::Object::new(guest_map.as_ref())?;
 
+    let guest_hull = guest_obj.segments().load_convex_hull()?;
     let mut output = Writer::new(&args.output, 0o755)?;
+    relink_stage1(guest_hull, &mut output)?;
 
-    {
-        let stage1 = include_bytes!(concat!(env!("OUT_DIR"), "/embeds/stage1"));
-        output.write_all(stage1)?;
+    Ok(())
+}
+
+fn relink_stage1(guest_hull: Range<u64>, writer: &mut Writer) -> Result<(), Error> {
+    let obj = pixie::Object::new(include_bytes!(
+        concat!(
+            env!("OUT_DIR"),
+            "/embeds/libstage1.so"
+        )
+    ))?;
+
+    let hull = obj.segments().load_convex_hull()?;
+    assert_eq!(hull.start, 0, "stage1 must be relocatable");
+
+    // Pick a base offset. If our guest is a relocatable executable, pick a
+    // random one, otherwise, pick theirs.
+    let base_offset = if guest_hull.start == 0 {
+        0x800000 // by fair dice roll
+    } else {
+        guest_hull.start
+    };
+    println!("Picked base_offset 0x{:x}", base_offset);
+
+    let hull = (hull.start + base_offset)..(hull.end + base_offset);
+    println!("Stage1 hull: {:x?}", hull);
+    println!(" Guest hull: {:x?}", guest_hull);
+
+    // map stage1 wherever
+    let mut mapped = pixie::MappedObject::new(&obj, None)?;
+    println!("Loaded stage1");
+
+    // then relocate it as if it was mapped at `base_offset`
+    mapped.relocate(base_offset)?;
+    println!("Relocated stage1");
+
+    println!("Looking for `entry` in stage1...");
+    let entry_sym = mapped.lookup_sym("entry")?;
+    let entry_point = base_offset + entry_sym.value;
+
+    let mut load_segs = obj
+        .segments()
+        .of_type(pixie::SegmentType::Load)
+        .collect::<Vec<_>>();
+
+    let out_header = ObjectHeader {
+        class: pixie::ElfClass::Elf64,
+        endianness: pixie::Endianness::Little,
+        version: 1,
+        os_abi: pixie::OsAbi::SysV,
+        r#type: pixie::ElfType::Exec,
+        machine: pixie::ElfMachine::X86_64,
+        version_bis: 1,
+        entry_point,
+
+        flags: 0,
+        hdr_size: ObjectHeader::SIZE,
+        // Two additional segments: one for `brk` alignment, and GNU_STACK.
+        ph_count: load_segs.len() as u16 + 2,
+        ph_offset: ObjectHeader::SIZE as _,
+        ph_entsize: ProgramHeader::SIZE,
+        // We're not adding any sections, our object will be opaque to debuggers
+        sh_count: 0,
+        sh_entsize: 0,
+        sh_nidx: 0,
+        sh_offset: 0,
+    };
+
+    writer.write_deku(&out_header)?;
+
+    let static_headers = load_segs.iter().map(|seg| {
+        let mut ph = seg.header().clone();
+        ph.vaddr += base_offset;
+        ph.paddr += base_offset;
+        ph
+    });
+    for ph in static_headers {
+        writer.write_deku(&ph)?;
     }
 
-    let guest_offset = output.offset();
-    let guest_compressed_len;
-    let guest_len;
+    // Insert dummy segment to offset the `brk` to its original position
+    // for the guest, if we can.
     {
-        let guest = File::open(&args.input)?;
-        let guest = guest.map()?;
-        let guest = guest.as_ref();
-        guest_len = guest.len();
+        let current_hull = pixie::align_hull(hull);
+        let desired_hull = pixie::align_hull(guest_hull);
 
-        let guest_compressed = lz4_flex::compress_prepend_size(guest);
-        guest_compressed_len = guest_compressed.len();
-        output.write_all(&guest_compressed[..])?;
-    }
-
-    output.align(PAGE_SIZE)?;
-
-    let manifest_offset = output.offset();
-    {
-        let manifest = Manifest {
-            guest: Resource {
-                offset: guest_offset as _,
-                len: guest_compressed_len as _,
-            },
+        let pad_size = if current_hull.end > desired_hull.end {
+            println!("WARNING: Guest executable is too small, the `brk` will be wrong.");
+            0x0
+        } else {
+            desired_hull.end - current_hull.end
         };
-        output.write_deku(&manifest)?;
-    }
 
-    {
-        let marker = EndMarker {
-            manifest_offset: manifest_offset as _,
+        let ph = pixie::ProgramHeader {
+            paddr: current_hull.end,
+            vaddr: current_hull.end,
+            mem_size: pad_size,
+            file_size: 0,
+            offset: 0,
+            align: 0x1000,
+            r#type: pixie::SegmentType::Load,
+            flags: ProgramHeader::WRITE | ProgramHeader::READ,
         };
-        output.write_deku(&marker)?;
+        writer.write_deku(&ph)?;
     }
 
-    println!(
-        "Wrote {} ({:.2}% of input)",
-        args.output,
-        (output.offset() as f64 / guest_len as f64) * 100.0,
-    );
+    // Add a GNU_STACK program header for alignment and make it
+    // non-executable.
+    {
+        let ph = ProgramHeader {
+            paddr: 0,
+            vaddr: 0,
+            mem_size: 0,
+            file_size: 0,
+            offset: 0,
+            align: 0x10,
+            r#type: pixie::SegmentType::GnuStack,
+            flags: ProgramHeader::WRITE | ProgramHeader::READ,
+        };
+        writer.write_deku(&ph)?;
+    }
+
+    // Sort load segments by file offset and copy them.
+    {
+        load_segs.sort_by_key(|&seg| seg.header().offset);
+
+        println!("Copying stage1 segments...");
+        let copy_start_offset = writer.offset();
+        println!("copy_start_offset = 0x{:x}", copy_start_offset);
+        let copied_segments = load_segs
+            .into_iter()
+            .filter(move |seg| seg.header().offset > copy_start_offset);
+
+        for cp_seg in copied_segments {
+            let ph = cp_seg.header();
+            println!("copying {:?}", ph);
+
+            // Pad space between segments with zeros:
+            writer.pad(ph.offset - writer.offset())?;
+
+            // Then copy.
+            let start = ph.vaddr;
+            let len = ph.file_size;
+            let end = start + len;
+
+            writer.write_all(mapped.vaddr_slice(start..end))?;
+        }
+    }
+
+    // Pad end of last segment with zeros:
+    writer.align(0x1000)?;
 
     Ok(())
 }
