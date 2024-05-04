@@ -68,16 +68,19 @@ fn relink_stage1(guest_hull: Range<u64>, writer: &mut Writer) -> Result<(), Erro
 
     // Pick a base offset. If our guest is a relocatable executable, pick a
     // random one, otherwise, pick theirs.
-    let base_offset = if guest_hull.start == 0 {
-        0x800000 // by fair dice roll
+    let (base_offset, adjusted_guest_hull) = if guest_hull.start == 0 {
+        let offset = 0x800000; // by fair dice roll
+        let adjusted_guest_hull = (guest_hull.start + offset)..(guest_hull.end + offset);
+        (offset, adjusted_guest_hull)
     } else {
-        guest_hull.start
+        (guest_hull.start, guest_hull.clone())
     };
     println!("Picked base_offset 0x{:x}", base_offset);
 
     let hull = (hull.start + base_offset)..(hull.end + base_offset);
     println!("Stage1 hull: {:x?}", hull);
     println!(" Guest hull: {:x?}", guest_hull);
+    println!("AGuest hull: {:x?}", adjusted_guest_hull);
 
     // map stage1 wherever
     let mut mapped = pixie::MappedObject::new(&obj, None)?;
@@ -135,7 +138,7 @@ fn relink_stage1(guest_hull: Range<u64>, writer: &mut Writer) -> Result<(), Erro
     // for the guest, if we can.
     {
         let current_hull = pixie::align_hull(hull);
-        let desired_hull = pixie::align_hull(guest_hull);
+        let desired_hull = pixie::align_hull(adjusted_guest_hull);
 
         let pad_size = if current_hull.end > desired_hull.end {
             println!("WARNING: Guest executable is too small, the `brk` will be wrong.");
@@ -143,6 +146,7 @@ fn relink_stage1(guest_hull: Range<u64>, writer: &mut Writer) -> Result<(), Erro
         } else {
             desired_hull.end - current_hull.end
         };
+        println!("pad segment size = 0x{:x}", pad_size);
 
         let ph = pixie::ProgramHeader {
             paddr: current_hull.end,
