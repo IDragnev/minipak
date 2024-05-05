@@ -16,9 +16,7 @@ unsafe extern "C" fn _start() {
 use error::Error;
 use encore::prelude::*;
 use pixie::{
-    ObjectHeader,
-    ProgramHeader,
-    Writer,
+    ObjectHeader, ProgramHeader, Resource, Writer
 };
 use core::ops::Range;
 
@@ -51,6 +49,42 @@ fn write_compressed(args: &cli::Args) -> Result<(), Error> {
     let guest_hull = guest_obj.segments().load_convex_hull()?;
     let mut output = Writer::new(&args.output, 0o755)?;
     relink_stage1(guest_hull, &mut output)?;
+
+    let stage2_slice = include_bytes!(concat!(env!("OUT_DIR"), "/embeds/libstage2.so"));
+    let stage2_offset = output.offset();
+    println!("Copying stage2 at 0x{:x}", stage2_offset);
+    output.write_all(stage2_slice)?;
+    output.align(0x8)?;
+
+    println!("Compressing guest...");
+    let compressed_guest = lz4_flex::compress_prepend_size(guest_map.as_ref());
+    let guest_offset = output.offset();
+    println!("Copying compressed guest at 0x{:x}", guest_offset);
+    output.write_all(&compressed_guest)?;
+    output.align(0x8)?;
+
+    let manifest_offset = output.offset();
+    println!("Writing manifest at 0x{:x}", manifest_offset);
+    let manifest = pixie::Manifest {
+        stage2: Resource {
+            offset: stage2_offset as _,
+            len: stage2_slice.len(),
+        },
+        guest: Resource {
+            offset: manifest_offset as _,
+            len: compressed_guest.len(),
+        },
+    };
+    output.write_deku(&manifest)?;
+    output.align(0x8)?;
+
+    println!("Writing end marker");
+    let end_marker = pixie::EndMarker {
+        manifest_offset: manifest_offset as _,
+    };
+    output.write_deku(&end_marker)?;
+
+    println!("Written to {}", args.output);
 
     Ok(())
 }
