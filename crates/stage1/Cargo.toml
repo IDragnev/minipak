@@ -10,3 +10,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 encore = { path = "../encore" }
+pixie = { path = "../pixie" }

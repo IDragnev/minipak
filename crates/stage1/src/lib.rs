@@ -32,10 +32,31 @@ unsafe fn premain(stack_top: *mut u8) -> ! {
 }
 
 /// # Safety
-/// Nothing bad so far.
+/// Maps and calls into another ELF object
 #[inline(never)]
 unsafe fn main(stack_top: *mut u8) -> ! {
     info!("Stack top: {:?}", stack_top);
 
-    syscall::exit(0)
+    let file = File::open("/proc/self/exe").unwrap();
+    let map = file.map().unwrap();
+    let full_slice = map.as_ref();
+    let manifest = pixie::Manifest::read_from_full_slice(full_slice).unwrap();
+
+    let stage2_slice = &full_slice[manifest.stage2.as_range()];
+    let stage2_obj = pixie::Object::new(stage2_slice).unwrap();
+    let mut stage2_mapped = pixie::MappedObject::new(&stage2_obj, None).unwrap();
+    info!(
+        "Mapped stage2 at base 0x{:x} (offset 0x{:x})",
+        stage2_mapped.base(),
+        stage2_mapped.base_offset(),
+    );
+    info!("Relocating stage2...");
+    stage2_mapped.relocate(stage2_mapped.base_offset()).unwrap();
+    info!("Relocating stage2 done!");
+
+    let s2_entry = stage2_mapped.lookup_sym("entry").unwrap();
+    info!("Found entry sym {:?}", s2_entry);
+    let entry: unsafe extern "C" fn(*mut u8) -> ! = 
+        core::mem::transmute(stage2_mapped.base_offset() + s2_entry.value);
+    entry(stack_top);
 }
