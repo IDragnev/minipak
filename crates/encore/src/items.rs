@@ -26,7 +26,7 @@ use crate::memmap::MmapOptions;
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
-const HEAP_SIZE_MB: u64 = 128;
+const HEAP_SIZE_MB: u64 = 512;
 
 /// Initialize a global allocator that only uses `mmap`, with a fixed heap size.
 ///

@@ -4,7 +4,6 @@ pub(crate) use alloc::{
 };
 pub(crate) use deku::prelude::*;
 pub(crate) use deku::{
-    DekuContainerRead,
     DekuRead,
 };
 pub(crate) use derivative::*;

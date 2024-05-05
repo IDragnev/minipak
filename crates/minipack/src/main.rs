@@ -71,7 +71,7 @@ fn write_compressed(args: &cli::Args) -> Result<(), Error> {
             len: stage2_slice.len(),
         },
         guest: Resource {
-            offset: manifest_offset as _,
+            offset: guest_offset as _,
             len: compressed_guest.len(),
         },
     };
