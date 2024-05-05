@@ -2,7 +2,7 @@
 members = [
     "crates/encore",
     "crates/pixie",
-    "crates/minipack",
+    "crates/minipak",
     "crates/stage1",
     "crates/stage2",
 ]
