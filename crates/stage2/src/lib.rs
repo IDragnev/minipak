@@ -59,7 +59,7 @@ unsafe fn main(stack_top: *mut u8) -> ! {
     let base_offset = at.unwrap_or_default();
 
     let guest_mapped = MappedObject::new(&guest_obj, at).unwrap();
-    info!("Mapping guest at  0x{:x}", guest_mapped.base());
+    info!("Mapping guest at 0x{:x}", guest_mapped.base());
 
     // set aux vectors
     let at_phdr = stack.find_vector(AuxvType::PHDR);
@@ -74,7 +74,7 @@ unsafe fn main(stack_top: *mut u8) -> ! {
     match guest_obj.segments().find(pixie::SegmentType::Interp) {
         Ok(interp) => {
             let interp = core::str::from_utf8(interp.slice()).unwrap();
-            println!("Should load interpreter {}!", interp);
+            info!("Should load interpreter {}!", interp);
 
             let interp_file = File::open(interp).unwrap();
             let interp_map = interp_file.map().unwrap();
